@@ -1,1 +1,133 @@
-e
+import sys, getopt
+import re
+import urllib.error
+import docx
+from urllib import request
+
+
+# 1.命令参数
+def main(argv):
+    inputfile = ''
+    outputfile = ''
+    try:
+        opts, args = getopt.getopt(argv, "hi:o:", ["ifile=", "ofile="])
+    except getopt.GetoptError:
+        print('test.py -i <inputfile> -o <outputfile>')
+        sys.exit(2)
+    for opt, arg in opts:
+        if opt == '-h':
+            print('test.py -i <inputfile> -o <outputfile>')
+            sys.exit()
+        elif opt in ("-i", "--ifile"):
+            inputfile = arg
+        elif opt in ("-o", "--ofile"):
+            outputfile = arg
+    print('输出的文件:', inputfile)
+    print('输入的文件:', outputfile)
+
+
+# 2. 下载四级
+def Cet_download(url):
+    try:
+        load = request.urlretrieve(url)[0]
+        # 临时文件
+    except urllib.error.HTTPError as e:
+        print(e)
+        if e.code == 403:
+            print('权限不足')
+        elif e.code == 404:
+            print('文件不存在')
+    except Exception as e:
+        print(e)
+    else:
+        if load:
+            save_txt(load)  # 调用函数
+
+
+def save_txt(page):
+    with open(page, 'rb') as stream:  # 读
+        container = stream.read()
+        with open(r'../cet4_vocabulary.txt', 'wb') as rstream:  # 写
+            rstream.write(container)
+
+
+# 3除外表
+def Cet_download1(url):
+    # 异常
+    try:
+        load1 = request.urlretrieve(url)[0]  # 临时文件
+    except urllib.error.HTTPError as e:
+        print(e)
+        if e.code == 403:
+            print('权限不足')
+        elif e.code == 404:
+            print('无法访问')
+    except Exception as e:
+        print(e)
+    else:
+        if load1:
+            save_txt1(load1)  # 调用函数
+
+
+def save_txt1(page1):
+    with open(page1, 'rb') as stream:
+        container = stream.read()
+        with open(r'../cet4_excluded.txt', 'wb') as rstream:
+            rstream.write(container)
+
+
+def container_word():
+    with open('../cet4_vocabulary.txt', 'r', encoding='utf-8') as stream:
+        contain = stream.read()
+        contain_one = re.findall(r'[a-z]+', contain)  # 提取字母
+    return contain_one
+
+
+def containers_word():
+    with open('../cet4_excluded.txt', 'r', encoding='utf-8') as rstream:
+        contains = rstream.read()
+        contain_two = re.findall(r'[a-z]+', contains)
+    return contain_two
+
+
+# 4判断是否为四级
+def need_highlight(word: str, container, containers) -> bool:
+    word1 = word.lower()
+    try:
+        for i in container:
+            if word1 == i and word not in containers:
+                result = True
+                return result
+                break
+
+    except Exception as e:
+        print('单词读取错误', e)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])  # 命令参数
+    input_docx = sys.argv[2]
+    output_docx = sys.argv[4]
+
+    Cet_download('https://www.guoliang.net/Courses/Spring.2022/Python.Programming/Slides/cet4-vocabulary.txt')
+    Cet_download1('https://www.guoliang.net/Courses/Spring.2022/Python.Programming/Slides/cet4-excluded.txt')
+    contain_one = container_word()  # 四级内容
+    contain_two = containers_word()  # 除外表
+    # 高亮
+    original_doc = docx.Document(input_docx)
+    new_doc = docx.Document()  # 生成文件
+    for orig_p in original_doc.paragraphs:
+        new_p = new_doc.add_paragraph()
+        if orig_p.runs.__len__() != 0:
+            res = re.findall(r'\w+|[^\w\s]', orig_p.text)
+            # print('The list of words is :' + str(res))
+            for i in res:
+                # print(i)
+                run = new_p.add_run(i + ' ')
+                result = need_highlight(i, contain_one, contain_two)
+                if result == True:
+                    run.font.color.rgb = docx.shared.RGBColor(238, 75, 43)
+    try:
+        new_doc.save(output_docx)
+    except Exception as e:
+        print('docx 生成错误:', e)
